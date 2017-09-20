@@ -1,0 +1,7 @@
+FROM tomcat:latest
+MAINTAINER civilis@acme.com
+
+ADD sample.war /usr/local/tomcat/webapps/
+ADD alfresco-client.war /usr/local/tomcat/webapps/
+
+CMD ["catalina.sh", "run"]

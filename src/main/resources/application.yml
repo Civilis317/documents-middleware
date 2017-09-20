@@ -1,0 +1,8 @@
+alfresco:
+     targetfolder: "/User Homes/@USER@/inbox"
+     atom_pubUrl: "http://localhost:9080/alfresco/api/-default-/cmis/versions/1.1/atom"
+
+server:
+    contextPath: "/alfresco-client"
+    port: 8080
+         

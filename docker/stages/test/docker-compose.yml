@@ -1,0 +1,27 @@
+version: "2"
+services:
+
+  postgres:
+    image: 192.168.56.10:6010/boip-poc/postgresql:latest
+    container_name: postgresql
+    ports:
+      - "5432:5432"
+    volumes:
+      - /Users/civilis/Projects/work/docker/alfresco/pg_data:/var/lib/postgresql/data/pgdata
+    environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_PASSWORD: welcome1
+
+  alfresco:
+    image: 192.168.56.10:6010/boip-poc/alfresco
+    container_name: alfresco
+    ports:
+      - "9070:7070"
+      - "9080:8080"
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_HOST: postgresql
+      DATABASE_NAME: postgres
+      DATABASE_PASSWORD: welcome1
+      DATABASE_USER: postgres

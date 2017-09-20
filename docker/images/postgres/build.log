@@ -1,0 +1,21 @@
+Sending build context to Docker daemon  4.608kB
+Step 1/5 : FROM postgres:9.6.5
+ ---> 2e1182956e3a
+Step 2/5 : MAINTAINER civilis@acme.com
+ ---> Running in af735e446d07
+ ---> 10197cd97a44
+Removing intermediate container af735e446d07
+Step 3/5 : VOLUME /var/lib/postgresql/data/pgdata
+ ---> Running in af9e6fb4c2f9
+ ---> 4120d06f75c9
+Removing intermediate container af9e6fb4c2f9
+Step 4/5 : EXPOSE 5432
+ ---> Running in ec2108fa6c90
+ ---> 3ac18ca31128
+Removing intermediate container ec2108fa6c90
+Step 5/5 : CMD postgres
+ ---> Running in 8a12ce927f05
+ ---> a9c36e650e82
+Removing intermediate container 8a12ce927f05
+Successfully built a9c36e650e82
+Successfully tagged boip-poc/postgresql:1.0
