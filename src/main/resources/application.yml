@@ -1,3 +1,9 @@
+spring:
+    http:
+      multipart:
+        max-file-size: 2MB
+        max-request-size: 2MB
+
 alfresco:
      targetfolder: "/User Homes/@USER@/inbox"
      atom_pubUrl: "http://localhost:9080/alfresco/api/-default-/cmis/versions/1.1/atom"
@@ -5,4 +11,9 @@ alfresco:
 server:
     contextPath: "/alfresco-client"
     port: 8080
-         
+
+logging:
+    level:
+        boip.vxcompany.nl.alfresco_client.controller: DEBUG
+        boip.vxcompany.nl.alfresco_client.controller.AlfrescoController: INFO
+    

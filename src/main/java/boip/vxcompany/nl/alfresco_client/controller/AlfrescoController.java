@@ -30,9 +30,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
+import boip.vxcompany.nl.alfresco_client.Utils;
 import boip.vxcompany.nl.alfresco_client.alfresco.SessionProvider;
 import boip.vxcompany.nl.alfresco_client.message.Message;
 import boip.vxcompany.nl.alfresco_client.security.JwtConfig;
@@ -44,6 +47,22 @@ public class AlfrescoController {
     private String targetFolder;
 
     private static final Logger logger = LoggerFactory.getLogger(AlfrescoController.class);
+
+    @RequestMapping(path = "/upload", method = RequestMethod.POST)
+    public @ResponseBody AlfrescoDocumentMetadata fileUpload(HttpServletRequest request, @RequestPart("title") String title, @RequestPart("description") String description, @RequestPart("uploadFile") MultipartFile file)
+            throws Exception {
+
+        String authToken = request.getHeader(JwtConfig.HEADER_STRING);
+        String user = JwtConfig.getUser(authToken);
+
+        request.getParameterMap().forEach((k, v) -> logger.info("key: {}, value: {}", k, v));
+
+        Session session = SessionProvider.getSession(user);
+        Folder folder = (Folder) session.getObjectByPath("/admin-inbox");
+
+        Document document = saveDocument(session, folder, file.getOriginalFilename(), file, title, description);
+        return Utils.toAlfrescoDocumentMetadata(document);
+    }
 
     @RequestMapping(path = "/send-message", method = RequestMethod.POST)
     public @ResponseBody String sendMessage(HttpServletRequest request, @RequestBody Message payload) throws IOException {
@@ -101,19 +120,7 @@ public class AlfrescoController {
         ItemIterable<CmisObject> contentItems = folder.getChildren();
         for (CmisObject contentItem : contentItems) {
             if (contentItem instanceof Document) {
-                Document document = (Document) contentItem;
-                AlfrescoDocumentMetadata admd = new AlfrescoDocumentMetadata();
-                admd.setName(document.getName());
-                admd.setType(document.getType().getDisplayName());
-                admd.setContentUrl(document.getContentUrl());
-                admd.setDescription(document.getDescription());
-                admd.setDocId(document.getId());
-                admd.setDocumentType(document.getDocumentType().getDisplayName());
-                admd.setMimeType(document.getContentStreamMimeType());
-                admd.setSize(document.getContentStreamLength());
-                admd.setModifiedDate(document.getLastModificationDate());
-                admd.setModifiedBy(document.getLastModifiedBy());
-                resultList.add(admd);
+                resultList.add(Utils.toAlfrescoDocumentMetadata((Document) contentItem));
             }
         }
         return resultList;
@@ -128,7 +135,7 @@ public class AlfrescoController {
     }
 
     // create a new document
-    public Document createDocument(Session session, Folder parentFolder, String documentName, Message message) throws IOException {
+    private Document createDocument(Session session, Folder parentFolder, String documentName, Message message) throws IOException {
         Map<String, Object> newDocumentProps = new HashMap<String, Object>();
         String typeId = "cmis:document";
         newDocumentProps.put(PropertyIds.OBJECT_TYPE_ID, typeId);
@@ -154,4 +161,75 @@ public class AlfrescoController {
         return newDocument;
     }
 
+    private Document saveDocument(Session session, Folder parentFolder, String documentName, MultipartFile file, String title, String description) throws Exception {
+        // Setup document metadata
+        Map<String, Object> properties = new HashMap<String, Object>();
+        properties.put(PropertyIds.OBJECT_TYPE_ID, "cmis:document");
+        properties.put(PropertyIds.NAME, documentName);
+
+        // add title and description
+        List<String> secondary = new ArrayList<>();
+        secondary.add("P:cm:titled");
+        properties.put(PropertyIds.SECONDARY_OBJECT_TYPE_IDS, secondary);
+        properties.put("cm:title", title);
+        properties.put("cm:description", description);
+
+        // closable resource: try(..){..}catch(e){..}, the inputstream is automatically closed, also no finally block needed
+        try (InputStream is = file.getInputStream()) {
+            String mimetype = file.getContentType();
+            ContentStream contentStream = session.getObjectFactory().createContentStream(documentName, file.getSize(), mimetype, is);
+
+            // Create versioned document object
+            Document newDocument = parentFolder.createDocument(properties, contentStream, VersioningState.MAJOR);
+
+            logger.info("Created new document: " + getDocumentPath(newDocument) + " [version=" + newDocument.getVersionLabel() + "][creator=" + newDocument.getCreatedBy() + "][created="
+                    + date2String(newDocument.getCreationDate().getTime()) + "]");
+            return newDocument;
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new Exception("Save document failed: ", e);
+        }
+    }
+
+    private String getDocumentPath(Document document) {
+        String path2Doc = getParentFolderPath(document);
+        if (!path2Doc.endsWith("/")) {
+            path2Doc += "/";
+        }
+        path2Doc += document.getName();
+        return path2Doc;
+    }
+
+    private String getParentFolderPath(Document document) {
+        Folder parentFolder = getDocumentParentFolder(document);
+        return parentFolder == null ? "Un-filed" : parentFolder.getPath();
+    }
+
+    private Folder getDocumentParentFolder(Document document) {
+        // Get all the parent folders (could be more than one if multi-filed)
+        List<Folder> parentFolders = document.getParents();
+
+        // Grab the first parent folder
+        if (parentFolders.size() > 0) {
+            if (parentFolders.size() > 1) {
+                logger.info("The " + document.getName() + " has more than one parent folder, it is multi-filed");
+            }
+
+            return parentFolders.get(0);
+        } else {
+            logger.info("Document " + document.getName() + " is un-filed and does not have a parent folder");
+            return null;
+        }
+    }
+
+    /**
+     * Returns date as a string
+     *
+     * @param date date object
+     * @return date as a string formatted with "yyyy-MM-dd HH:mm:ss z"
+     */
+    private String date2String(Date date) {
+        return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss z").format(date);
+    }
 }
